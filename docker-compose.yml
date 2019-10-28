@@ -1,0 +1,23 @@
+version: '3.7'
+
+services:
+  app:
+    image: app:latest
+    build:
+      context: .
+    volumes:
+      - ./:/opt/app
+    command: python scripts/ke_doc2vec.py test_abstract_1.txt
+    depends_on:
+      - stanford
+
+  stanford:
+    image: stanford:latest
+    build:
+      dockerfile: Dockerfile.stanford
+      context: .
+    ports:
+      - "9000:9000"
+    command: java -cp "*" -mx4g edu.stanford.nlp.pipeline.StanfordCoreNLPServer
+
+

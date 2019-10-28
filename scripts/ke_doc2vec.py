@@ -1,11 +1,25 @@
 import json
 import sys
+import pickle
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from nltk.parse.corenlp import CoreNLPParser
 from nltk import sent_tokenize
-import pickle
+from nltk.corpus import stopwords
 
-parser = CoreNLPParser()
+parser = CoreNLPParser(
+    url='http://stanford:9000'
+)
+
+def filter_noun_phrases(subtree, keyphrases):
+    if subtree.label() != "NP":
+        return False
+    if len(subtree.leaves()) > 6:
+        return False
+    if subtree.leaves() in keyphrases:
+        return False
+    if len(subtree.leaves()) == 1 and subtree.leaves()[0].lower() in stopwords.words("english"):
+        return False
+    return True
 
 
 def get_np_keyphrases(abstract_sents):
@@ -19,7 +33,7 @@ def get_np_keyphrases(abstract_sents):
     for sent_parse in post_parses:
         for tree in sent_parse[0]:
             for subtree in tree.subtrees():
-                if subtree.label() == "NP" and len(subtree.leaves()) < 6 and not subtree.leaves() in keyphrases:
+                if filter_noun_phrases(subtree, keyphrases):
                     keyphrases.append(subtree.leaves())
     return keyphrases
 
@@ -95,8 +109,9 @@ def get_keyphrases(model, abstract):
     keyphrases = get_np_keyphrases(sent_tokenize(abstract))
     resulting_similarities = []
     for keyphrase in keyphrases:
-        resulting_similarities.append((" ".join(keyphrase),
-                                      model.docvecs.similarity_unseen_docs(model, tokens, keyphrase)))
+        simi_score = model.docvecs.similarity_unseen_docs(model, tokens, keyphrase)
+        if simi_score > 0.5:
+            resulting_similarities.append((" ".join(keyphrase), simi_score))
     resulting_similarities.sort(key=lambda x: x[1], reverse=True)
     return resulting_similarities
 
@@ -109,9 +124,9 @@ if __name__ == "__main__":
     # alpha = 0.025
     # train_model(max_epochs, vec_size, alpha, "../data/hulth_ke_train_tagged")
 
-    modelname = "../d2v.model"
+    modelname = "scripts/d2v.model"
 
     with open(sys.argv[1]) as abstract_file:
-        print("{: <30} {: >20}".format("KEYPHRASE", "ITS SIMILARITY SCORE"))
+        print("{: <50} {: >20}".format("KEYPHRASE", "ITS SIMILARITY SCORE"))
         for k,s in get_keyphrases(modelname, abstract_file.read()):
-            print("{: <30} : {: >20}".format(k, s))
+            print("{: <50} : {: >20}".format(k, s))
